@@ -1,0 +1,94 @@
+---
+title: "README"
+author: "Colin Fraser"
+date: "26/03/2021"
+output: md_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This is an RMarkdown document designed to help get started using the publicly available [Birdwatch dataset in R](https://twitter.com/i/birdwatch/about).
+
+# About Birdwatch
+
+Birdwatch is a community-driven approach to address tweets that may mislead people. Using Birdwatch, regular Twitter users can annotate Tweets to provide helpful context when they believe that a tweet may or may not mislead people. You can read more about Birdwatch on the official site [here](https://twitter.github.io/birdwatch/).
+
+Birdwatch is currently in a limited pilot phase which means that only a small number of users are able to leave notes (we are constantly growing the project, and if you want to sign up to be a participant, [here's the link](https://twitter.com/i/flow/join-birdwatch)). However, as part of the Birdwatch project, we make all of the data about notes available for anyone to download.
+
+# Birdwatch Data
+
+This notebook is a short guide on ingesting these datasets into R for doing your own analysis. If you want to get started with Birdwatch data with R, cloning this repo will give you everything you need, and you can just work directly off this `readme.Rmd` document.
+
+## Notes
+
+The notes dataset contains all of the notes that have been written by Birdwatchers to date. This repo contains a snapshot of the dataset as of 2021-03-25, but the most recent snapshot is always available [here](https://twitter.com/i/birdwatch/download-data).
+
+Every note corresponds to a tweet, identified by its `tweetId`, and has its own unique identifier `noteId`. The following code reads the notes dataset into R.
+
+```{r read_notes, message=FALSE, warning=FALSE}
+library(readr)
+library(dplyr)
+library(lubridate)
+notes <- read_tsv("data/notes-00000.tsv",
+  col_types =
+    cols(
+      .default = col_double(),
+
+      # it's best to leave ID columns as characters
+      noteId = col_character(),
+      participantId = col_character(),
+      tweetId = col_character(),
+
+      # these are the labels applied by Birdwatch users
+      classification = col_character(),
+      believable = col_character(),
+      harmful = col_character(),
+      validationDifficulty = col_character(),
+      summary = col_character()
+    )
+)
+glimpse(notes)
+```
+
+The `createdAtMillis` column indicates the time that the note was created as a millisecond timestamp. You can easily convert this to something more familiar.
+
+```{r}
+notes <- notes %>% 
+  mutate(createdAt = as_datetime(createdAtMillis/1000)) %>% 
+  glimpse()
+```
+
+## Ratings
+
+The Birdwatch community can leave notes on tweets, and they can also rate the notes that they come across. The goal is to use these ratings to determine which notes are the most helpful. The ratings dataset contains every rating that has been left on a Birdwatch note.
+
+```{r read_ratings}
+ratings <- read_tsv("data/ratings-00000.tsv",
+  col_types =
+    cols(
+      .default = col_double(),
+      noteId = col_character(),
+      participantId = col_character()
+    )
+)
+# similarly, createdAtMillis here indicates when the rating was left as a millisecond timestamp.
+ratings <- ratings %>% 
+  mutate(createdAt = as_datetime(createdAtMillis/1000))
+glimpse(ratings)
+```
+
+### Integrating the two datasets
+
+Every rating is left on a note, which has a unique identifier. This allows the datasets to be joined. Remember that not every note has a rating, so you should use a left join here.
+
+```{r}
+notes %>% 
+  left_join(ratings, by = 'noteId', suffix = c('_note', '_rating')) %>% 
+  head()
+```
+
+## More information about the dataset
+
+The official Birdwatch site has [a guide to the dataset](https://twitter.github.io/birdwatch/contributing/download-data/) with a complete description of each column.
